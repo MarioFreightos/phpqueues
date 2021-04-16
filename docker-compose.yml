@@ -1,0 +1,67 @@
+version: '3.1'
+
+services:
+  web_sender:
+    build:
+      context: .
+      dockerfile: docker/web_sender/Dockerfile
+    volumes:
+      - ./docker/config/php.ini:/usr/local/etc/php/php.ini
+      - ./src:/var/www/html/
+    ports:
+      - 3000:80
+    depends_on:
+      - web_receiver
+      - composer
+
+  web_receiver:
+    build:
+      context: .
+      dockerfile: docker/web_receiver/Dockerfile
+    volumes:
+      - ./docker/config/php.ini:/usr/local/etc/php/php.ini
+      - ./src:/var/www/html
+    ports:
+      - 3001:80
+    depends_on:
+      composer:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    links:
+      - rabbitmq
+
+  rabbitmq:
+    #image: rabbitmq
+    build:
+      context: .
+      dockerfile: docker/rabbitmq/Dockerfile
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:15672"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+
+  composer:
+    image: composer
+    volumes:
+      - ./src:/app
+    command: composer install --ignore-platform-reqs
+
+  db:
+    image: mysql
+    volumes:
+      - ./db_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345
+      MYSQL_DATABASE: docker_database
+    ports:
+      - 3306:3306
+
+volumes:
+  rabbitmq-data:

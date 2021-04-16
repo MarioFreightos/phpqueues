@@ -1,0 +1,8 @@
+{
+  "require": {
+    "php-amqplib/php-amqplib": ">=2.6.1",
+    "ext-simplexml": "*",
+    "ext-zlib": "*",
+    "ext-libxml": "*"
+  }
+}
