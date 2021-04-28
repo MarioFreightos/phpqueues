@@ -6,16 +6,30 @@ require_once "db_connect.php";
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 
+/////// Database Connection ///////
 $db = new DbConnect();
 $conn = $db->connect();
 
+
 $connection = new AMQPStreamConnection('rabbitmq', 5672, 'guest', 'guest');
+/*$connection = new AMQPStreamConnection(
+    'amqps://b-472341bf-4b47-438b-945b-70d1823221a9.mq.eu-west-1.amazonaws.com',
+    5671,
+    'spiderweb',
+    'wcn8765-wcn4321'
+);*/
 $channel = $connection->channel();
-$exchange = 'logs';
-$routing_key = 'routing_key_log';
+$channel2 = $connection->channel();
 
 $channel->exchange_declare(
-    $exchange,
+    'logs',
+    'topic',
+    false,
+    false,
+    false
+);
+$channel2->exchange_declare(
+    'otroexchange',
     'topic',
     false,
     false,
@@ -28,8 +42,15 @@ list($queue_name, ,) = $channel->queue_declare(
     false,
     true,
     false);
+list($queue_name2, ,) = $channel2->queue_declare(
+    "",
+    false,
+    false,
+    true,
+    false);
 
-$channel->queue_bind($queue_name, $exchange, $routing_key);
+$channel->queue_bind($queue_name, 'logs', 'routing_key_log');
+$channel2->queue_bind($queue_name2, 'otroexchange', 'otroexchange_log');
 
 echo " [x] Todo bien hasta akí! \n";
 
@@ -75,14 +96,28 @@ $channel->basic_consume(
     false,
     $mi_funcion
 );
+$channel2->basic_consume(
+    $queue_name2,
+    '',
+    false,
+    false,
+    false,
+    false,
+    function($msg){
+        echo " [x] Canal 2". $msg->body;
+    }
+);
 
-while ($channel->is_consuming()) {
+while ($channel->is_consuming() && $channel2->is_consuming()) {
     $channel->wait();
+    echo " [x] Esperando al otro canal...\n";
+    $channel2->wait();
     echo " [x] Perfecto!\n";
 }
 
 
 $channel->close();
+$channel2->close();
 $connection->close();
 
 

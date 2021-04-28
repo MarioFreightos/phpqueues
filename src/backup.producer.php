@@ -7,17 +7,24 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 $connection = new AMQPStreamConnection('rabbitmq', 5672, 'guest', 'guest');
 $channel = $connection->channel();
+$channel2 = $connection->channel();
 
 if (isset($_POST)) {
 
     $frontend_message = $_POST['message'];
     $airline_id = $_POST['airline_id'];
     $string_data = $_POST['file_data'];
-    $exchange = 'logs';
-    $routing_key = 'routing_key_log';
 
     $channel->exchange_declare(
-        $exchange,
+        'logs',
+        'topic',
+        false,
+        false,
+        false
+    );
+
+    $channel2->exchange_declare(
+        'otroexchange',
         'topic',
         false,
         false,
@@ -26,7 +33,8 @@ if (isset($_POST)) {
 
     $msg = new AMQPMessage($airline_id . "_" . $string_data);
 
-    $channel->basic_publish($msg, $exchange, $routing_key);
+    $channel->basic_publish($msg, 'logs', 'routing_key_log');
+    $channel2->basic_publish($msg,'otroexchange','otroexchange_log');
 
     $channel->close();
     $connection->close();
