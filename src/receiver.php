@@ -11,74 +11,47 @@ $conn = $db->connect();
 
 $connection = new AMQPStreamConnection('rabbitmq', 5672, 'guest', 'guest');
 $channel = $connection->channel();
+
 $exchange = 'logs';
 $routing_key = 'routing_key_log';
 
-$channel->exchange_declare(
-    $exchange,
-    'topic',
+$channel->queue_declare(
+    'rpc_queue',
     false,
     false,
-    false
-);
-
-list($queue_name, ,) = $channel->queue_declare(
-    "",
     false,
-    false,
-    true,
     false);
-
-$channel->queue_bind($queue_name, $exchange, $routing_key);
 
 echo " [x] Todo bien hasta akí! \n";
 
-$mi_funcion = function ($msg) {
-    echo " [x] Preparing data \n";
-
-    $all_data = explode('_', $msg->body);
-    $airline_id = $all_data[0];
-    $array_data = json_decode($all_data[1]);
-    $data_fields = $array_data[0]; // Getting headers into variable
-
-    array_push($data_fields, 'sync'); // Insert a last column
-    array_shift($array_data); // Removing headers from data array
-
-    echo " [x] Working for airline_id: " . $airline_id . "\n";
-
-    $my_data = array();
-
-    foreach ($array_data as $data_row) {
-        $new_array = array();
-        $new_array['airline_id'] = $airline_id; // First column
-        foreach ($data_row as $data_row_key => $data_row_value) {
-            $new_array[$data_fields[$data_row_key]] = (float)$data_row_value;
-        }
-        $new_array['sync'] = 1; // Last column
-        $my_data[] = $new_array;
-    }
-
-    echo " [x] Inserting data \n";
-
-    array_unshift($data_fields, 'airline_id');
-    multiInsert($my_data, $data_fields);
-
-    echo " [x] Data inserted \n";
-};
-
+$channel->basic_qos(null, 1, null);
 $channel->basic_consume(
-    $queue_name,
+    'rpc_queue',
     '',
     false,
     false,
     false,
     false,
-    $mi_funcion
-);
+    function ($req) {
+        echo " [x] Preparing data \n";
+        $message = $req->body;
+        echo ' [.] message recieved: "' . $message . '"\n';
+        $msg = new AMQPMessage(
+            ' ---- correctly recieved!',
+            array('correlation_id' => $req->get('correlation_id'))
+        );
+        sleep(3);
+        $req->delivery_info['channel']->basic_publish(
+            $msg,
+            '',
+            $req->get('reply_to')
+        );
+        $req->ack();
+    });
 
-while ($channel->is_consuming()) {
+while ($channel->is_open()) {
     $channel->wait();
-    echo " [x] Perfecto!\n";
+    echo " [x] Pos vale...!\n";
 }
 
 

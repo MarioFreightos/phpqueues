@@ -14,24 +14,53 @@ if (isset($_POST)) {
     $airline_id = $_POST['airline_id'];
     $string_data = $_POST['file_data'];
     $exchange = 'logs';
-    $routing_key = 'routing_key_log';
+    $routing_key = 'rpc_queue';
+    $corr_id = uniqid();
+    $response = null;
 
-    $channel->exchange_declare(
-        $exchange,
-        'topic',
+    list($callback_queue, ,) = $channel->queue_declare(
+        "",
         false,
         false,
+        true,
         false
     );
 
-    $msg = new AMQPMessage($airline_id . "_" . $string_data);
+    $channel->basic_consume(
+        $callback_queue,
+        '',
+        false,
+        true,
+        false,
+        false,
+        function ($rep) {
+            global $response;
+            global $corr_id;
+            if ($rep->get('correlation_id') == $corr_id) {
+                $response = $rep->body;
+            }
+        }
+    );
 
-    $channel->basic_publish($msg, $exchange, $routing_key);
+    $msg = new AMQPMessage(
+        (string)$airline_id . "_" . $string_data,
+        array(
+            'correlation_id' => $corr_id,
+            'reply_to' => $callback_queue
+        )
+    );
+
+    $channel->basic_publish($msg, '', $routing_key);
+
+    while (!$response) {
+        $channel->wait();
+    }
 
     $channel->close();
     $connection->close();
 
-    die($airline_id . "_" . $string_data);
+    echo ' [.] Got ', $response, "\n";
+    die();
 }
 /*$connection = new AMQPStreamConnection(
     'amqps://b-472341bf-4b47-438b-945b-70d1823221a9.mq.eu-west-1.amazonaws.com',
