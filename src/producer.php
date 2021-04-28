@@ -18,6 +18,14 @@ if (isset($_POST)) {
     $corr_id = uniqid();
     $response = null;
 
+    $channel->exchange_declare(
+        $exchange,
+        'topic',
+        false,
+        false,
+        false
+    );
+
     list($callback_queue, ,) = $channel->queue_declare(
         "",
         false,
@@ -44,13 +52,10 @@ if (isset($_POST)) {
 
     $msg = new AMQPMessage(
         (string)$airline_id . "_" . $string_data,
-        array(
-            'correlation_id' => $corr_id,
-            'reply_to' => $callback_queue
-        )
+        ['correlation_id' => $corr_id, 'reply_to' => $callback_queue]
     );
 
-    $channel->basic_publish($msg, '', $routing_key);
+    $channel->basic_publish($msg, $exchange, $routing_key);
 
     while (!$response) {
         $channel->wait();

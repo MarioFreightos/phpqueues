@@ -13,47 +13,64 @@ $connection = new AMQPStreamConnection('rabbitmq', 5672, 'guest', 'guest');
 $channel = $connection->channel();
 
 $exchange = 'logs';
-$routing_key = 'routing_key_log';
+$routing_key = 'rpc_queue';
 
-$channel->queue_declare(
-    'rpc_queue',
+$channel->exchange_declare(
+    $exchange,
+    'topic',
     false,
     false,
+    false
+);
+
+list($queue_name, ,) = $channel->queue_declare(
+    "",
     false,
-    false);
+    false,
+    true,
+    false
+);
+
+$channel->queue_bind($queue_name, $exchange, $routing_key);
 
 echo " [x] Todo bien hasta akí! \n";
 
+$my_callback = function ($req) {
+    echo " [x] Preparing data \n";
+    $message = $req->body;
+    echo " [.] Message received" . $message . "\n";
+    $msg = new AMQPMessage(
+        ' ---- correctly recieved!',
+        array('correlation_id' => $req->get('correlation_id'))
+    );
+    sleep(3);
+    echo "<pre>";
+    var_dump($req);
+    echo "\n";
+    echo " [.] Sending response...\n";
+    $req->delivery_info['channel']->basic_publish(
+        $msg,
+        '',
+        $req->get('reply_to')
+    );
+    $req->ack();
+};
+
 $channel->basic_qos(null, 1, null);
 $channel->basic_consume(
-    'rpc_queue',
+    $queue_name,
     '',
     false,
     false,
     false,
     false,
-    function ($req) {
-        echo " [x] Preparing data \n";
-        $message = $req->body;
-        echo ' [.] message recieved: "' . $message . '"\n';
-        $msg = new AMQPMessage(
-            ' ---- correctly recieved!',
-            array('correlation_id' => $req->get('correlation_id'))
-        );
-        sleep(3);
-        $req->delivery_info['channel']->basic_publish(
-            $msg,
-            '',
-            $req->get('reply_to')
-        );
-        $req->ack();
-    });
+    $my_callback
+);
 
 while ($channel->is_open()) {
     $channel->wait();
     echo " [x] Pos vale...!\n";
 }
-
 
 $channel->close();
 $connection->close();
