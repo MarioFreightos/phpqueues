@@ -106,7 +106,6 @@ $QR_xlsx = SimpleXLSX::parse('files/QR_sync.xlsx');
 
     <script>
         function sendQueue(airlineId, data) {
-            console.log(data);
             $.ajax({
                 type: "POST",
                 url: "producer.php",

@@ -38,16 +38,12 @@ echo " [x] Todo bien hasta akí! \n";
 $my_callback = function ($req) {
     echo " [x] Preparing data \n";
     $message = $req->body;
-    echo " [.] Message received" . $message . "\n";
+    echo " [.] Message received: " . $message . "\n";
     $msg = new AMQPMessage(
         ' ---- correctly recieved!',
         array('correlation_id' => $req->get('correlation_id'))
     );
     sleep(3);
-    echo "<pre>";
-    var_dump($req);
-    echo "\n";
-    echo " [.] Sending response...\n";
     $req->delivery_info['channel']->basic_publish(
         $msg,
         '',
